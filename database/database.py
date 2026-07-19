@@ -136,3 +136,32 @@ def cancel_appointment(appointment_id: int) -> bool:
         connection.commit()
 
     return cursor.rowcount > 0
+
+# ---------------------------------------------------
+# Appointment rescheduling
+# ---------------------------------------------------
+def reschedule_appointment(
+    appointment_id: int,
+    new_date: str,
+    new_time: str
+) -> bool:
+    """Update the date and time of a confirmed appointment."""
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            UPDATE appointments
+            SET appointment_date = ?,
+                appointment_time = ?
+            WHERE id = ?
+              AND status = 'Confirmed'
+            """,
+            (
+                new_date,
+                new_time,
+                appointment_id
+            )
+        )
+
+        connection.commit()
+
+    return cursor.rowcount > 0

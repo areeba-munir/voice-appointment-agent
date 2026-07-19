@@ -6,11 +6,18 @@ import dateparser
 import pandas as pd
 import streamlit as st
 
+import importlib
 from database import database as db
+
+# Force Python/Streamlit to reload the latest saved database.py
+importlib.invalidate_caches()
+db = importlib.reload(db)
+
 appointment_exists = db.appointment_exists
 cancel_appointment = db.cancel_appointment
 get_all_appointments = db.get_all_appointments
 initialize_database = db.initialize_database
+reschedule_appointment = db.reschedule_appointment
 save_appointment = db.save_appointment
 
 from services.speech_service import transcribe_audio
@@ -241,7 +248,105 @@ if page == "Manage Appointments":
         hide_index=True
     )
 
-        # ---------------------------------------------------
+    # ---------------------------------------------------
+    # Reschedule a saved appointment
+    # ---------------------------------------------------
+    st.divider()
+    st.subheader("Reschedule an Appointment")
+
+    if "reschedule_success_message" in st.session_state:
+        st.success(st.session_state.reschedule_success_message)
+        del st.session_state.reschedule_success_message
+
+    confirmed_reschedule_df = appointments_df[
+        appointments_df["status"] == "Confirmed"
+    ].copy()
+
+    if confirmed_reschedule_df.empty:
+        st.info(
+            "There are no confirmed appointments available to reschedule."
+        )
+
+    else:
+        reschedule_options = {}
+
+        for _, appointment_row in confirmed_reschedule_df.iterrows():
+            option_label = (
+                f"Booking #{appointment_row['id']} — "
+                f"{appointment_row['full_name']} — "
+                f"{appointment_row['appointment_date'].strftime('%Y-%m-%d')} "
+                f"at {appointment_row['appointment_time']}"
+            )
+
+            reschedule_options[option_label] = int(
+                appointment_row["id"]
+            )
+
+        selected_reschedule_appointment = st.selectbox(
+            "Select a confirmed appointment to reschedule",
+            options=list(reschedule_options.keys()),
+            key="reschedule_appointment_select"
+        )
+
+        new_date = st.date_input(
+            "Select a new appointment date",
+            min_value=datetime.now().date(),
+            key="reschedule_date"
+        )
+
+        new_time = st.time_input(
+            "Select a new appointment time",
+            key="reschedule_time"
+        )
+
+        confirm_reschedule = st.checkbox(
+            "I confirm that I want to reschedule this appointment.",
+            key="confirm_reschedule"
+        )
+
+        if st.button(
+            "Reschedule Selected Appointment",
+            type="primary",
+            disabled=not confirm_reschedule
+        ):
+            selected_appointment_id = reschedule_options[
+                selected_reschedule_appointment
+            ]
+
+            formatted_date = new_date.strftime("%Y-%m-%d")
+            formatted_time = new_time.strftime("%I:%M %p")
+
+            if appointment_exists(
+                formatted_date,
+                formatted_time
+            ):
+                st.error(
+                    "That date and time are already booked. "
+                    "Please choose another slot."
+                )
+
+            else:
+                reschedule_successful = reschedule_appointment(
+                    selected_appointment_id,
+                    formatted_date,
+                    formatted_time
+                )
+
+                if reschedule_successful:
+                    st.session_state.reschedule_success_message = (
+                         f"Booking #{selected_appointment_id} "
+                         f"has been rescheduled successfully to "
+                         f"{formatted_date} at {formatted_time}."
+                  )
+                    st.rerun()
+
+                else:
+                    st.error(
+                        "The appointment could not be rescheduled. "
+                        "It may already be cancelled."
+                    )
+
+    # ---------------------------------------------------
     # Cancel a saved appointment
     # ---------------------------------------------------
     st.divider()
@@ -687,7 +792,7 @@ def get_requested_edit_field(message: str) -> str | None:
     if "reason" in normalized_message or "purpose" in normalized_message:
         return "reason"
 
-    return Non
+    return None
 
 
 # ---------------------------------------------------
