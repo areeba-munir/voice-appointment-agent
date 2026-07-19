@@ -1,0 +1,6 @@
+streamlit
+pandas
+SpeechRecognition
+pyttsx3
+python-dateutil
+dateparser

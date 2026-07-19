@@ -1,0 +1,19 @@
+{
+  "business_name": "Smart Booking Services",
+  "agent_name": "Ava",
+  "business_category": "General Service Provider",
+  "appointment_types": [
+    "General Consultation",
+    "Follow-up",
+    "Service Appointment",
+    "Other"
+  ],
+  "welcome_message": "Welcome to Smart Booking Services. I can help you book an appointment.",
+  "confirmation_message": "Your appointment has been confirmed successfully.",
+  "cancellation_message": "Your appointment booking has been cancelled.",
+  "voice_settings": {
+    "enabled": true,
+    "rate": 165,
+    "volume": 1.0
+  }
+}
