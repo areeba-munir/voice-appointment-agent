@@ -1,154 +1,60 @@
 # Testing Report
 
-## 1. Booking Flow Tests
+## Project
 
-### Test 1: Valid complete booking
-- Name: Areeba Munir
-- Phone: +923001234567
-- Date: Future date
-- Time: 2:30 PM
-- Type: General Consultation
-- Reason: Project discussion
-- Confirmation: Yes
-- Expected: Appointment saved successfully
-- Result:
-- Status: Pass / Fail
+AI Voice Appointment Booking Agent
 
-### Test 2: Invalid name
-- Input: A
-- Expected: Name rejected
-- Result:
-- Status: Pass / Fail
+## Testing Environment
 
-### Test 3: Spoken name cleaning
-- Input: My name is Sana
-- Expected: Saved as Sana
-- Result:
-- Status: Pass / Fail
+- Operating System: Windows
+- Python: 3.x
+- Framework: Streamlit
+- Database: SQLite
+- Browser: Google Chrome
 
-### Test 4: Invalid phone
-- Input: abc123
-- Expected: Phone rejected
-- Result:
-- Status: Pass / Fail
+## Test Cases
 
-### Test 5: Valid international phone
-- Input: +923001234567
-- Expected: Phone accepted
-- Result:
-- Status: Pass / Fail
+| Test ID | Feature | Test Steps | Expected Result | Status |
+|---|---|---|---|---|
+| T01 | Start booking | Click Start Appointment Booking | Agent asks for full name | Pass |
+| T02 | Valid name | Enter a valid full name | Name is accepted | Pass |
+| T03 | Invalid name | Enter numbers or a very short name | Validation message appears | Pass |
+| T04 | Phone validation | Enter a valid phone number | Phone is normalized and accepted | Pass |
+| T05 | Invalid phone | Enter letters or an invalid-length number | Validation message appears | Pass |
+| T06 | Email validation | Enter a valid email address | Email is accepted | Pass |
+| T07 | Spoken email | Say email using “at” and “dot” | Email is normalized | Pass |
+| T08 | Invalid email | Enter an invalid email | Validation message appears | Pass |
+| T09 | Future date | Enter a future date | Date is accepted | Pass |
+| T10 | Past date | Enter a past date | Validation message appears | Pass |
+| T11 | Valid time | Enter a valid future time | Time is accepted | Pass |
+| T12 | Past time today | Enter a time that has passed | Validation message appears | Pass |
+| T13 | Appointment type | Select an available appointment type | Type is accepted | Pass |
+| T14 | Reason | Enter a valid reason | Reason is accepted | Pass |
+| T15 | Confirm booking | Enter “confirm” | Appointment is saved | Pass |
+| T16 | Cancel during booking | Enter “cancel” | Booking stops without saving | Pass |
+| T17 | Duplicate slot | Book the same date and time twice | Duplicate warning appears | Pass |
+| T18 | Voice transcription | Record and convert speech to text | Recognized text appears for review | Pass |
+| T19 | Edit transcription | Correct recognized text | Corrected value is used | Pass |
+| T20 | Email confirmation | Complete booking with valid email settings | Confirmation email is sent | Pass/Not Configured |
+| T21 | Customer lookup | Enter correct Booking ID and contact | Appointment details appear | Pass |
+| T22 | Invalid customer lookup | Enter wrong contact information | No appointment details appear | Pass |
+| T23 | Customer reschedule | Select a new free date and time | Appointment is updated | Pass |
+| T24 | Customer cancel | Confirm cancellation | Status changes to Cancelled | Pass |
+| T25 | Cancelled appointment controls | Open a cancelled appointment | Reschedule and cancel controls are hidden | Pass |
+| T26 | Dashboard records | Open management dashboard | Appointment records appear | Pass |
+| T27 | Search | Search by name, phone, or email | Matching records appear | Pass |
+| T28 | Status filter | Filter by Confirmed or Cancelled | Correct records appear | Pass |
+| T29 | Type filter | Filter by appointment type | Correct records appear | Pass |
+| T30 | Date filter | Select an appointment date | Correct records appear | Pass |
+| T31 | CSV export | Click Download Filtered Appointments | CSV file downloads | Pass |
+| T32 | Admin reschedule | Reschedule a confirmed appointment | Date and time update | Pass |
+| T33 | Admin cancel | Cancel a confirmed appointment | Status changes to Cancelled | Pass |
+| T34 | Reset application | Click Reset Application | Booking state is cleared | Pass |
 
-### Test 6: Past date
-- Input: 2025-01-01
-- Expected: Date rejected
-- Result:
-- Status: Pass / Fail
+## Syntax Testing
 
-### Test 7: Natural-language date
-- Input: August 2nd 2026
-- Expected: Converted to 2026-08-02
-- Result:
-- Status: Pass / Fail
+The following commands were used:
 
-### Test 8: Ambiguous time
-- Input: 2:30
-- Expected: Ask for AM or PM
-- Result:
-- Status: Pass / Fail
-
-### Test 9: Spoken time
-- Input: 2:30 p.m.
-- Expected: Converted to 02:30 PM
-- Result:
-- Status: Pass / Fail
-
-### Test 10: 24-hour time
-- Input: 
-- Expected: Converted to 02:30 PM
-- Result:
-- Status: Pass / Fail
-
-### Test 11: Duplicate slot
-- Input: Same date and time as an existing appointment
-- Expected: Appointment rejected and another time requested
-- Result:
-- Status: Pass / Fail
-
-
-### Test 12: Cancellation
-- Input: Cancel my appointment
-- Expected: Booking cancelled and temporary data cleared
-- Result:
-- Status: Pass / Fail
-
-### Test 13: Rejection at confirmation
-- Input: Details are wrong
-- Expected: Booking restarts
-- Result:
-- Status: Pass / Fail
-### Test 14: Voice input
-- Input: Record a clear response
-- Expected: Speech converted to text and processed
-- Result:
-- Status: Pass / Fail
-
-### Test 15: Voice failure fallback
-- Input: Silent or unclear recording
-- Expected: Error shown and text input remains available
-- Result:
-- Status: Pass / Fail
-
-## 2. Database Tests
-
-### Test 16: Persistence
-- Action: Restart Streamlit
-- Expected: Saved appointments remain
-- Result:
-- Status: Pass / Fail
-
-### Test 17: Booking ID
-- Expected: Every saved appointment has a unique ID
-- Result:
-- Status: Pass / Fail
-
-### Test 18: Stored fields
-- Expected: Name, phone, date, time, type, reason, status, created time stored
-- Result:
-- Status: Pass / Fail
-
-## 3. Dashboard Tests
-
-### Test 19: Navigation
-- Expected: Both pages open correctly
-- Result:
-- Status: Pass / Fail
-
-### Test 20: Metrics
-- Expected: Total, Confirmed, Today, and Upcoming values are correct
-- Result:
-- Status: Pass / Fail
-
-### Test 21: Search
-- Expected: Search by name and phone works
-- Result:
-- Status: Pass / Fail
-
-### Test 22: Status filter
-- Expected: Status filter shows matching rows
-- Result:
-- Status: Pass / Fail
-
-### Test 23: Type filter
-- Expected: Appointment-type filter works
-- Result:
-- Status: Pass / Fail
-
-### Test 24: Date filter
-- Expected: Only appointments from the selected date appear
-- Result:
-- Status: Pass / Fail
-
-### Test 25: CSV export
-- Expected: Download contains only filtered records
-- Result:
-- Status: Pass / Fail14:30
+```bash
+python -m py_compile app.py
+python -m py_compile database/database.py
