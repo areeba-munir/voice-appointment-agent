@@ -6,6 +6,10 @@ The application also includes a customer self-service page, a staff dashboard, S
 
 ---
 
+## Live Demo
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://YOUR-APP-NAME.streamlit.app)
+
 ## Features
 
 ### Appointment Booking
