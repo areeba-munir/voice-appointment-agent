@@ -2,38 +2,63 @@
 
 ## 1. Architecture Overview
 
-The AI Voice Appointment Booking Agent is built as a modular Streamlit application.
+Write the architecture explanation here:
+- `app.py` handles the Streamlit interface and booking flow
+- `database/database.py` handles SQLite storage
+- `speech_service.py` converts voice to text
+- `text_to_speech_service.py` reads responses aloud
+- `email_service.py` sends confirmation emails
+- `config.json` stores business settings
+- Streamlit session state preserves conversation progress
 
-The main application interface and booking workflow are implemented in `app.py`. The application uses session state to manage the conversation, collect appointment details, validate user input, and control the booking flow.
+## 2. Features Implemented
 
-The project is divided into the following components:
+Write all completed features here:
+- Voice and text booking
+- Input validation
+- Spoken-email normalization
+- Duplicate-slot prevention
+- Booking confirmation
+- SQLite storage
+- Customer lookup
+- Customer rescheduling and cancellation
+- Staff dashboard
+- Search and filters
+- CSV export
+- Email confirmation support
 
-- `app.py` manages the user interface, conversation flow, validation, booking confirmation, customer appointment management, and staff dashboard.
-- `database/database.py` manages SQLite database connections, table creation, appointment storage, duplicate-slot checks, appointment retrieval, cancellation, and rescheduling.
-- `services/speech_service.py` converts recorded voice input into text.
-- `services/text_to_speech_service.py` reads the latest agent response aloud.
-- `services/email_service.py` sends appointment confirmation emails using SMTP.
-- `config.json` stores configurable business information, appointment types, welcome messages, and voice settings.
-- `.streamlit/secrets.toml` stores private email credentials locally.
-- `.streamlit/secrets.toml.example` provides a safe configuration template for other users.
+## 3. Assumptions Made
 
-The application uses SQLite as the local database and Streamlit session state to maintain the current booking conversation.
+Write the project assumptions here:
+- One confirmed appointment is allowed per date and time slot
+- Customers know their Booking ID and contact information
+- Cancelled slots can be booked again
+- Email delivery is optional
+- The app is an English-language prototype
+- SQLite is sufficient for the prototype
+- Staff authentication is not included
 
-The main workflow is:
+## 4. Challenges Faced
 
-```text
-User starts booking
-        ↓
-Agent collects appointment details
-        ↓
-Inputs are validated
-        ↓
-User reviews and confirms the booking
-        ↓
-Duplicate slot is checked
-        ↓
-Appointment is saved in SQLite
-        ↓
-Booking ID is generated
-        ↓
-Email confirmation is attempted
+Write the development challenges here:
+- Speech recognition sometimes misunderstood short words
+- Spoken email addresses needed normalization
+- Streamlit reruns required session-state management
+- Duplicate slots needed to be prevented
+- Customer records needed Booking ID and contact verification
+- SMTP authentication needed secure credentials
+- GitHub changes caused a merge conflict that had to be resolved
+
+## 5. Future Improvements
+
+Write possible future additions here:
+- Staff authentication
+- Role-based access
+- Cancellation and rescheduling email notifications
+- SMS reminders
+- Google Calendar integration
+- Cloud database
+- Multilingual voice support
+- Better natural-language understanding
+- Business working hours
+- Multiple staff/service providers
