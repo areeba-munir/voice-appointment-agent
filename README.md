@@ -357,5 +357,3 @@ Possible future improvements include:
 ## Author
 
 **Areeba Munir**
-
-BS Computer Science graduate interested in Data Science, Artificial Intelligence, and Machine Learning.
