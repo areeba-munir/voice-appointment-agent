@@ -13,9 +13,22 @@ def get_connection() -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     return connection
 
+def normalize_phone(phone_number: str) -> str:
+    """Remove spaces and common formatting characters from a phone number."""
+    return (
+        phone_number
+        .strip()
+        .replace(" ", "")
+        .replace("-", "")
+        .replace("(", "")
+        .replace(")", "")
+    )
+
 
 def initialize_database() -> None:
-    """Create the appointments table if it does not exist."""
+    """
+    Create the appointments table and apply required database updates.
+    """
     with get_connection() as connection:
         connection.execute(
             """
@@ -23,6 +36,7 @@ def initialize_database() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 full_name TEXT NOT NULL,
                 phone_number TEXT NOT NULL,
+                email_address TEXT,
                 appointment_date TEXT NOT NULL,
                 appointment_time TEXT NOT NULL,
                 appointment_type TEXT NOT NULL,
@@ -32,6 +46,25 @@ def initialize_database() -> None:
             )
             """
         )
+
+        # Check the existing columns in the appointments table
+        existing_columns = connection.execute(
+            "PRAGMA table_info(appointments)"
+        ).fetchall()
+
+        existing_column_names = {
+            column["name"]
+            for column in existing_columns
+        }
+
+        # Add email_address to older databases without deleting records
+        if "email_address" not in existing_column_names:
+            connection.execute(
+                """
+                ALTER TABLE appointments
+                ADD COLUMN email_address TEXT
+                """
+            )
 
         connection.commit()
 
@@ -68,20 +101,23 @@ def save_appointment(appointment: dict[str, Any]) -> int:
             INSERT INTO appointments (
                 full_name,
                 phone_number,
+                email_address,
                 appointment_date,
                 appointment_time,
                 appointment_type,
                 reason
+                
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                appointment["full_name"],
-                appointment["phone_number"],
+                appointment["full_name"].strip(),
+                normalize_phone(appointment["phone_number"]),
+                appointment.get("email_address", "").strip().lower(),
                 appointment["appointment_date"],
                 appointment["appointment_time"],
                 appointment["appointment_type"],
-                appointment["reason"]
+                appointment["reason"].strip()
             )
         )
 
@@ -95,7 +131,7 @@ def save_appointment(appointment: dict[str, Any]) -> int:
 
 
 def get_all_appointments() -> list[dict[str, Any]]:
-    """Return all stored appointments, newest first."""
+    """Return all stored appointments, ordered by date and time."""
     with get_connection() as connection:
         rows = connection.execute(
             """
@@ -103,6 +139,7 @@ def get_all_appointments() -> list[dict[str, Any]]:
                 id,
                 full_name,
                 phone_number,
+                email_address,
                 appointment_date,
                 appointment_time,
                 appointment_type,
@@ -165,3 +202,48 @@ def reschedule_appointment(
         connection.commit()
 
     return cursor.rowcount > 0
+
+# ---------------------------------------------------
+# Find a customer's appointment
+# ---------------------------------------------------
+def get_verified_appointment(
+    appointment_id: int,
+    contact_value: str
+) -> dict[str, Any] | None:
+    """
+    Return one appointment when the Booking ID matches
+    the customer's phone number or email address.
+    """
+    cleaned_contact = contact_value.strip().lower()
+    normalized_phone = normalize_phone(contact_value)
+
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                full_name,
+                phone_number,
+                email_address,
+                appointment_date,
+                appointment_time,
+                appointment_type,
+                reason,
+                status,
+                created_at
+            FROM appointments
+            WHERE id = ?
+              AND (
+                    LOWER(email_address) = ?
+                    OR phone_number = ?
+                  )
+            LIMIT 1
+            """,
+            (
+                appointment_id,
+                cleaned_contact,
+                normalized_phone
+            )
+        ).fetchone()
+
+    return dict(row) if row is not None else None

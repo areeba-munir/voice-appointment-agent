@@ -16,18 +16,20 @@ db = importlib.reload(db)
 appointment_exists = db.appointment_exists
 cancel_appointment = db.cancel_appointment
 get_all_appointments = db.get_all_appointments
+get_verified_appointment = db.get_verified_appointment
 initialize_database = db.initialize_database
 reschedule_appointment = db.reschedule_appointment
 save_appointment = db.save_appointment
 
 from services.speech_service import transcribe_audio
 from services.text_to_speech_service import speak_text
+from services.email_service import send_appointment_confirmation
 
 # ---------------------------------------------------
 # Page configuration
 # ---------------------------------------------------
 st.set_page_config(
-    page_title="AI Voice Appointment Agent",
+    page_title="AI Voice Appointment Booking Agent",
     page_icon="📅",
     layout="wide"
 )
@@ -51,6 +53,24 @@ def load_config() -> dict:
 
 config = load_config()
 initialize_database()
+# ---------------------------------------------------
+# Email configuration
+# ---------------------------------------------------
+def get_email_settings() -> dict:
+    """Load email settings securely from Streamlit secrets."""
+    try:
+        return {
+            "smtp_host": st.secrets["email"]["smtp_host"],
+            "smtp_port": int(
+                st.secrets["email"]["smtp_port"]
+            ),
+            "sender_email": st.secrets["email"]["sender_email"],
+            "sender_password": st.secrets["email"]["sender_password"]
+        }
+
+    except (KeyError, FileNotFoundError):
+        return {}
+
 
 # ---------------------------------------------------
 # Sidebar navigation
@@ -59,14 +79,290 @@ page = st.sidebar.radio(
     "Navigation",
     [
         "Book Appointment",
-        "Manage Appointments"
+        "Manage My Appointment",
+        "Staff Dashboard"
     ]
 )
+# ---------------------------------------------------
+# Customer appointment management page
+# ---------------------------------------------------
+if page == "Manage My Appointment":
+    st.title("Manage My Appointment")
+    st.caption(config["business_name"])
+
+    st.info(
+        "Enter your Booking ID and the phone number or email address "
+        "used during booking."
+    )
+
+    lookup_col1, lookup_col2 = st.columns(2)
+
+    with lookup_col1:
+        customer_booking_id_text = st.text_input(
+            "Booking ID",
+            placeholder="Enter your Booking ID",
+            key="customer_booking_id"
+        )
+
+    with lookup_col2:
+        customer_contact = st.text_input(
+            "Phone Number or Email Address",
+            placeholder="Enter your phone number or email",
+            key="customer_contact"
+        )
+
+    if st.button(
+        "Find My Appointment",
+        use_container_width=True
+    ):
+        # Clear any previously displayed appointment
+        st.session_state.verified_appointment = None
+
+        if not customer_booking_id_text.strip().isdigit():
+            st.error(
+                "Please enter a valid numeric Booking ID."
+            )
+
+        elif not customer_contact.strip():
+            st.error(
+                "Please enter the phone number or email address "
+                "used during booking."
+            )
+
+        else:
+            matched_appointment = get_verified_appointment(
+                int(customer_booking_id_text),
+                customer_contact
+            )
+
+            if matched_appointment is None:
+                st.error(
+                    "No appointment matched the provided Booking ID "
+                    "and contact information."
+                )
+
+            else:
+                st.session_state.verified_appointment = (
+                    matched_appointment
+                )
+
+                st.success(
+                    "Your appointment was found successfully."
+                )
+
+    verified_appointment = (
+        st.session_state.verified_appointment
+    )
+
+    if verified_appointment is not None:
+        
+        st.divider()
+        st.subheader("Your Appointment Details")
+
+        with st.container(border=True):
+            detail_col1, detail_col2 = st.columns(2)
+
+            with detail_col1:
+                st.markdown(
+                    f"**Booking ID:** "
+                    f"{verified_appointment['id']}"
+                )
+
+                st.markdown(
+                    f"**Full Name:** "
+                    f"{verified_appointment['full_name']}"
+                )
+
+                st.markdown(
+                    f"**Phone Number:** "
+                    f"{verified_appointment['phone_number']}"
+                )
+
+                email_address = verified_appointment.get(
+                    "email_address"
+                )
+
+                email_display = (
+                    verified_appointment["email_address"]
+                    if verified_appointment["email_address"]
+                    else "Not provided"
+                )
+                st.write(
+                    f"**Email Address:** {email_display}"
+                )
+
+            with detail_col2:
+                st.markdown(
+                    f"**Appointment Date:** "
+                    f"{verified_appointment['appointment_date']}"
+                )
+
+                st.markdown(
+                    f"**Appointment Time:** "
+                    f"{verified_appointment['appointment_time']}"
+                )
+
+                st.markdown(
+                    f"**Appointment Type:** "
+                    f"{verified_appointment['appointment_type']}"
+                )
+
+                st.markdown(
+                    f"**Reason:** "
+                    f"{verified_appointment['reason']}"
+                )
+
+                st.markdown(
+                    f"**Status:** "
+                    f"{verified_appointment['status']}"
+                )
+
+        if st.button(
+            "Clear Appointment",
+            use_container_width=True
+        ):
+            st.session_state.verified_appointment = None
+            st.rerun()
+
+        if verified_appointment["status"] == "Cancelled":
+            st.warning(
+                "This appointment has already been cancelled."
+            )
+
+        else:
+            st.divider()
+            st.subheader("Reschedule My Appointment")
+            if "customer_reschedule_message" in st.session_state:
+                st.success(
+                    st.session_state.customer_reschedule_message
+                )
+                del st.session_state.customer_reschedule_message
+            
+            new_customer_date = st.date_input(
+                "Select a new appointment date",
+                min_value=datetime.now().date(),
+                key="customer_reschedule_date"
+            )
+            
+            new_customer_time = st.time_input(
+                 "Select a new appointment time",
+                 key="customer_reschedule_time"
+            )
+            
+            confirm_customer_reschedule = st.checkbox(
+                "I confirm that I want to reschedule this appointment.",
+                key="confirm_customer_reschedule"
+            )
+            
+            if st.button(
+                "Reschedule My Appointment",
+                type="primary",
+                disabled=not confirm_customer_reschedule,
+                use_container_width=True
+            ):
+                formatted_customer_date = new_customer_date.strftime(
+                    "%Y-%m-%d"
+                )
+                
+                formatted_customer_time = new_customer_time.strftime(
+                    "%I:%M %p"
+                )
+                
+                current_date = verified_appointment["appointment_date"]
+                current_time = verified_appointment["appointment_time"]
+                
+                if (
+                    formatted_customer_date == current_date
+                    and formatted_customer_time == current_time
+                ):
+                    st.warning(
+                        "Please choose a different date or time."
+                    )
+                elif appointment_exists(
+                    formatted_customer_date,
+                    formatted_customer_time
+                ):
+                    st.error(
+                        "That date and time are already booked. "
+                        "Please choose another slot."
+                    )
+                else:
+                    reschedule_successful = reschedule_appointment(
+                        int(verified_appointment["id"]),
+                        formatted_customer_date,
+                        formatted_customer_time
+                    )
+                    if reschedule_successful:
+                        st.session_state.verified_appointment = (
+                            get_verified_appointment(
+                                int(verified_appointment["id"]),
+                                customer_contact
+                             )
+                        )
+                        st.session_state.customer_reschedule_message = (
+                            f"Your appointment has been rescheduled to "
+                            f"{formatted_customer_date} at "
+                            f"{formatted_customer_time}."
+                        )
+
+                        #st.session_state.confirm_customer_reschedule = False
+                        st.rerun()
+                    else:
+                        st.error(
+                            "The appointment could not be rescheduled."
+                        )
+ # ---------------------------------------------------
+    # Customer cancellation
+    # ---------------------------------------------------
+            st.divider()
+            st.subheader("Cancel My Appointment")
+
+            customer_cancel_confirmed = st.checkbox(
+                "I confirm that I want to cancel this appointment.",
+                key="customer_cancel_confirmed"
+            )
+
+            if st.button(
+                "Cancel My Appointment",
+                type="primary",
+                disabled=not customer_cancel_confirmed,
+                use_container_width=True
+            ):
+                cancellation_successful = cancel_appointment(
+                    int(verified_appointment["id"])
+                )
+
+                if cancellation_successful:
+                    updated_appointment = (
+                        get_verified_appointment(
+                            int(verified_appointment["id"]),
+                            customer_contact
+                        )
+                    )
+
+                    st.session_state.verified_appointment = (
+                        updated_appointment
+                    )
+
+                    st.success(
+                        "Your appointment has been "
+                        "cancelled successfully."
+                    )
+
+                    st.rerun()
+
+                else:
+                    st.error(
+                        "The appointment could not be cancelled. "
+                        "It may already be cancelled."
+                    )
+
+    st.stop()
 
 # ---------------------------------------------------
 # Manage appointments page
 # ---------------------------------------------------
-if page == "Manage Appointments":
+if page == "Staff Dashboard":
     st.title("📊 Appointment Management Dashboard")
     st.caption(config["business_name"])
 
@@ -94,21 +390,38 @@ if page == "Manage Appointments":
             appointments_df["status"] == "Confirmed"
         ]
     )
+    cancelled_appointments = len(
+        appointments_df[
+            appointments_df["status"] == "Cancelled"
+        ]
+    )
 
     today_appointments = len(
         appointments_df[
-            appointments_df["appointment_date"] == today
+            (
+                appointments_df["appointment_date"] == today
+            )
+            & (
+                appointments_df["status"] == "Confirmed"
+            )
         ]
     )
 
     upcoming_appointments = len(
         appointments_df[
-            appointments_df["appointment_date"] > today
+            (
+                appointments_df["appointment_date"] > today
+            )
+            & (
+                appointments_df["status"] == "Confirmed"
+            )
         ]
     )
 
     # Display dashboard cards
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = (
+        st.columns(5)
+    )
 
     with metric_col1:
         st.metric(
@@ -121,14 +434,19 @@ if page == "Manage Appointments":
             label="Confirmed",
             value=confirmed_appointments
         )
-
     with metric_col3:
+        st.metric(
+            label="Cancelled",
+            value=cancelled_appointments
+        )
+
+    with metric_col4:
         st.metric(
             label="Today's Appointments",
             value=today_appointments
         )
 
-    with metric_col4:
+    with metric_col5:
         st.metric(
             label="Upcoming",
             value=upcoming_appointments
@@ -145,13 +463,20 @@ if page == "Manage Appointments":
 
     with filter_col1:
         search_name = st.text_input(
-            "Search by name or phone number"
+            "Search appointments"
+        )
+        st.caption(
+             "Search by name, phone number, or email."
         )
 
     with filter_col2:
         selected_status = st.selectbox(
             "Filter by status",
-            ["All", "Confirmed"]
+            [
+                "All",
+                "Confirmed",
+                "Cancelled"
+            ]
         )
 
     with filter_col3:
@@ -182,6 +507,11 @@ if page == "Manage Appointments":
                 search_text,
                 na=False
             )
+            |
+            filtered_df["email_address"].astype(str).str.lower().str.contains(
+                search_text,
+                na=False
+          )
         ]
 
     if selected_status != "All":
@@ -220,6 +550,7 @@ if page == "Manage Appointments":
             "id": "Booking ID",
             "full_name": "Full Name",
             "phone_number": "Phone Number",
+            "email_address": "Email Address",
             "appointment_date": "Date",
             "appointment_time": "Time",
             "appointment_type": "Appointment Type",
@@ -413,8 +744,7 @@ if page == "Manage Appointments":
 
     st.stop()
 
-
-st.title("📅 AI Appointment Booking Agent")
+st.title("📅 AI Voice Appointment Booking Agent")
 st.caption(config["business_name"])
 
 st.info(
@@ -431,6 +761,7 @@ default_state = {
     "appointment": {
         "full_name": "",
         "phone_number": "",
+         "email_address": "",
         "appointment_date": "",
         "appointment_time": "",
         "appointment_type": "",
@@ -445,6 +776,8 @@ default_state = {
     "awaiting_confirmation": False,
     "booking_completed": False,
     "appointment_id": None,
+    "verified_appointment": None,
+    "email_status": None,
     "voice_input_key": 0,
     "editing_field": None,
     "pending_voice_text": None
@@ -513,6 +846,49 @@ def validate_phone(phone: str) -> tuple[bool, str]:
 
     return True, cleaned_phone
 
+def normalize_spoken_email(email_text: str) -> str:
+    """Convert a spoken email address into standard email format."""
+    cleaned_email = email_text.strip().lower()
+
+    cleaned_email = re.sub(
+        r"\s+at\s+",
+        "@",
+        cleaned_email
+    )
+
+    cleaned_email = re.sub(
+        r"\s+dot\s+",
+        ".",
+        cleaned_email
+    )
+
+    cleaned_email = cleaned_email.replace(" ", "")
+
+    return cleaned_email
+
+def validate_email(email: str) -> tuple[bool, str]:
+    """Validate and normalize an email address."""
+    cleaned_email = normalize_spoken_email(email)
+
+    if not cleaned_email:
+        return False, "Email address cannot be empty."
+
+    email_pattern = (
+        r"^[A-Za-z0-9._%+-]+"
+        r"@[A-Za-z0-9.-]+"
+        r"\.[A-Za-z]{2,}$"
+    )
+
+    if not re.fullmatch(email_pattern, cleaned_email):
+        return False, (
+            "Please enter a valid email address, "
+            "for example, name@example.com."
+        )
+
+    if ".." in cleaned_email:
+        return False, "Please enter a valid email address."
+
+    return True, cleaned_email
 
 def validate_date(date_text: str) -> tuple[bool, str]:
     cleaned_date = date_text.strip()
@@ -710,47 +1086,68 @@ def is_cancellation_message(message: str) -> bool:
 
 
 def is_confirmation(message: str) -> bool:
+    """Check whether the user clearly confirms the booking."""
     normalized_message = normalize_message(message)
 
-    confirmation_phrases = [
-        "yes",
-        "y",
+    negative_phrases = {
+        "no",
+        "not confirm",
+        "do not confirm",
+        "dont confirm",
+        "cancel",
+        "cancel booking",
+        "cancel appointment"
+    }
+
+    if (
+        normalized_message in negative_phrases
+        or normalized_message.startswith("not ")
+        or normalized_message.startswith("do not ")
+        or normalized_message.startswith("dont ")
+    ):
+        return False
+
+    confirmation_words = {
+        "book",
         "confirm",
-        "confirmed",
+        "yes",
         "proceed",
-        "book it",
-        "book appointment",
-        "yes confirm",
-        "yes proceed",
-        "yes please",
         "okay",
         "ok",
-        "sure",
-        "correct",
-        "details are correct"
-    ]
+        "sure"
+    }
 
-    return normalized_message in confirmation_phrases
+    message_words = set(normalized_message.split())
+
+    return bool(message_words & confirmation_words)
 
 
 def is_rejection(message: str) -> bool:
+    """Check whether the user rejects or cancels the booking."""
     normalized_message = normalize_message(message)
 
-    rejection_phrases = [
+    rejection_phrases = {
         "no",
         "n",
-        "change",
-        "edit",
-        "incorrect",
-        "not correct",
-        "details are wrong",
-        "restart",
-        "start again",
-        "no restart",
-        "i want to change"
-    ]
+        "cancel",
+        "cancel booking",
+        "cancel appointment",
+        "not confirm",
+        "do not confirm",
+        "dont confirm",
+        "do not book",
+        "dont book",
+        "stop",
+        "quit",
+        "exit"
+    }
 
-    return normalized_message in rejection_phrases
+    return (
+        normalized_message in rejection_phrases
+        or normalized_message.startswith("not ")
+        or normalized_message.startswith("do not ")
+        or normalized_message.startswith("dont ")
+    )
 
 # ---------------------------------------------------
 # Edit command detection
@@ -775,6 +1172,8 @@ def get_requested_edit_field(message: str) -> str | None:
 
     if "phone" in normalized_message or "number" in normalized_message:
         return "phone_number"
+    if "email" in normalized_message:
+        return "email_address"
 
     if "date" in normalized_message:
         return "appointment_date"
@@ -801,9 +1200,13 @@ def get_requested_edit_field(message: str) -> str | None:
 questions = {
     "full_name": "What is your full name?",
     "phone_number": "What is your phone number?",
+    "email_address": (
+        "What is your email address? "
+        "For example, name@example.com."
+    ),
     "appointment_date": (
-        "Please provide your preferred appointment date. "
-        "Enter it in YYYY-MM-DD format or state the full date in words."
+         "Please provide your preferred appointment date. "
+         "Enter it in YYYY-MM-DD format or state the full date in words."
     ),
     "appointment_time": (
         "What time would you prefer? "
@@ -816,6 +1219,7 @@ questions = {
 field_order = [
     "full_name",
     "phone_number",
+    "email_address",
     "appointment_date",
     "appointment_time",
     "appointment_type",
@@ -824,6 +1228,7 @@ field_order = [
 field_labels = {
     "full_name": "Name",
     "phone_number": "Phone Number",
+    "email_address": "Email Address",
     "appointment_date": "Appointment Date",
     "appointment_time": "Appointment Time",
     "appointment_type": "Appointment Type",
@@ -917,6 +1322,7 @@ def reset_booking() -> None:
     st.session_state.appointment = {
         "full_name": "",
         "phone_number": "",
+        "email_address": "",
         "appointment_date": "",
         "appointment_time": "",
         "appointment_type": "",
@@ -925,6 +1331,7 @@ def reset_booking() -> None:
     st.session_state.awaiting_confirmation = False
     st.session_state.booking_completed = False
     st.session_state.appointment_id = None
+    st.session_state.email_status = None
     st.session_state.editing_field = None
     st.session_state.pending_voice_text = None
     st.session_state.messages = [
@@ -953,12 +1360,13 @@ Please confirm your appointment details:
 
 **Name:** {appointment["full_name"]}  
 **Phone:** {appointment["phone_number"]}  
+**Email:** {appointment["email_address"]}  
 **Date:** {appointment["appointment_date"]}  
 **Time:** {appointment["appointment_time"]}  
 **Appointment Type:** {appointment["appointment_type"]}  
 **Reason:** {appointment["reason"]}
 
-Type **yes** to confirm or **no** to cancel this booking.
+Type **confirm** to book or **cancel** to stop this booking.
 """
 
         add_message("assistant", confirmation_message)
@@ -980,6 +1388,9 @@ def process_field(field: str, user_input: str) -> None:
 
     elif field == "phone_number":
         valid, result = validate_phone(user_input)
+    
+    elif field == "email_address":
+        valid, result = validate_email(user_input)
 
     elif field == "appointment_date":
         valid, result = validate_date(user_input)
@@ -1045,12 +1456,13 @@ Please confirm your appointment details:
 
 **Name:** {appointment["full_name"]}  
 **Phone:** {appointment["phone_number"]}  
+**Email:** {appointment["email_address"]}  
 **Date:** {appointment["appointment_date"]}  
 **Time:** {appointment["appointment_time"]}  
 **Appointment Type:** {appointment["appointment_type"]}  
 **Reason:** {appointment["reason"]}
 
-Type **yes** to confirm or **no** to cancel this booking.
+Type **confirm** to book or **cancel** to stop this booking.
 """
 
             add_message(
@@ -1077,7 +1489,7 @@ voice_settings = config.get("voice_settings", {})
 voice_enabled = voice_settings.get("enabled", True)
 
 if latest_agent_message and voice_enabled:
-    if st.button("🔊 Speak Agent Response"):
+    if st.button("🔊 Read Response Aloud"):
         success, result = speak_text(
             latest_agent_message,
             rate=voice_settings.get("rate", 165),
@@ -1094,7 +1506,7 @@ if latest_agent_message and voice_enabled:
 # Start booking button
 # ---------------------------------------------------
 if not st.session_state.booking_started:
-    if st.button("Start Appointment Booking", type="primary"):
+    if st.button("Start Booking", type="primary"):
         st.session_state.booking_started = True
         add_message("assistant", questions["full_name"])
         st.rerun()
@@ -1234,12 +1646,14 @@ elif not st.session_state.booking_completed:
             st.session_state.awaiting_confirmation = False
             st.session_state.booking_completed = False
             st.session_state.appointment_id = None
+            st.session_state.email_status = None
 
             st.session_state.voice_input_key += 1
 
             st.session_state.appointment = {
                 "full_name": "",
                 "phone_number": "",
+                "email_address": "",
                 "appointment_date": "",
                 "appointment_time": "",
                 "appointment_type": "",
@@ -1272,25 +1686,76 @@ elif not st.session_state.booking_completed:
                 else:
                     try:
                         appointment_id = save_appointment(appointment)
-
-                        st.session_state.appointment_id = appointment_id
-                        st.session_state.booking_completed = True
-                        st.session_state.awaiting_confirmation = False
-
-                        add_message(
-                            "assistant",
-                            "✅ Your appointment has been confirmed "
-                            f"successfully. Booking ID: {appointment_id}"
-                        )
-
                     except Exception as error:
                         add_message(
                             "assistant",
                             "The appointment could not be saved. "
                             "Please try again."
-                        )
-
+                       )
+                        
                         print(f"Database error: {error}")
+
+                    else:
+                        st.session_state.appointment_id = appointment_id
+                        st.session_state.booking_completed = True
+                        st.session_state.awaiting_confirmation = False
+                        
+                        add_message(
+                            "assistant",
+                            "✅ Your appointment has been confirmed successfully. "
+                            f"Booking ID: {appointment_id}"
+                        )
+                        
+                        email_settings = get_email_settings()
+                        
+                        if not email_settings:
+                            st.session_state.email_status = "not_configured"
+                            
+                            add_message(
+                                "assistant",
+                                "ℹ️ Your appointment was saved successfully, "
+                                "but email delivery is not configured."
+                            )
+                        else:
+                            try:
+                                email_sent, email_result = (
+                                    send_appointment_confirmation(
+                                        appointment=appointment,
+                                        appointment_id=appointment_id,
+                                        smtp_host=email_settings["smtp_host"],
+                                        smtp_port=email_settings["smtp_port"],
+                                        sender_email=email_settings["sender_email"],
+                                        sender_password=email_settings["sender_password"],
+                                        business_name=config["business_name"]
+                                    )
+                                )
+
+                                if email_sent:
+                                    st.session_state.email_status = "sent"
+                                    
+                                    add_message(
+                                        "assistant",
+                                        "📧 Confirmation email sent successfully to "
+                                        f"{appointment['email_address']}."
+                                    )
+                                else:
+                                    st.session_state.email_status = "failed"
+                                    
+                                    add_message(
+                                        "assistant",
+                                        "⚠️ Your appointment was saved successfully, "
+                                        "but the confirmation email could not be sent. "
+                                        
+                                    )
+                            except Exception as error:
+                                st.session_state.email_status = "failed"
+                                
+                                add_message(
+                                    "assistant",
+                                    "⚠️ Your appointment was saved successfully, "
+                                    "but an error occurred while sending the email."
+                                )
+                                print(f"Email error: {error}")
 
             elif is_rejection(user_input):
                 add_message(
@@ -1304,6 +1769,7 @@ elif not st.session_state.booking_completed:
                 st.session_state.awaiting_confirmation = False
                 st.session_state.booking_completed = False
                 st.session_state.appointment_id = None
+                st.session_state.email_status = None
                 st.session_state.editing_field = None
                 st.session_state.pending_voice_text = None
                 st.session_state.voice_input_key += 1
@@ -1311,6 +1777,7 @@ elif not st.session_state.booking_completed:
                 st.session_state.appointment = {
                     "full_name": "",
                     "phone_number": "",
+                    "email_address": "",
                     "appointment_date": "",
                     "appointment_time": "",
                     "appointment_type": "",
@@ -1320,7 +1787,7 @@ elif not st.session_state.booking_completed:
             else:
                 add_message(
                     "assistant",
-                    "Please type yes to confirm or no to cancel this booking."
+                    "Please say or type confirm to book, or cancel to stop this booking."
                 )
 
         else:
@@ -1341,36 +1808,53 @@ elif not st.session_state.booking_completed:
         
         st.session_state.voice_input_key += 1
         st.rerun()
-        
-
-
 # ---------------------------------------------------
 # Booking result
 # ---------------------------------------------------
 if st.session_state.booking_completed:
-    st.success("Appointment booked successfully!")
-
     st.subheader("Appointment Summary")
-    st.write(
-    f"**Booking ID:** {st.session_state.appointment_id}"
-    )
 
     appointment = st.session_state.appointment
 
-    st.write(f"**Name:** {appointment['full_name']}")
-    st.write(f"**Phone:** {appointment['phone_number']}")
-    st.write(f"**Date:** {appointment['appointment_date']}")
-    st.write(f"**Time:** {appointment['appointment_time']}")
-    st.write(
-        f"**Appointment Type:** "
-        f"{appointment['appointment_type']}"
-    )
-    st.write(f"**Reason:** {appointment['reason']}")
+    with st.container(border=True):
+        summary_col1, summary_col2 = st.columns(2)
 
-    if st.button("Book Another Appointment"):
+        with summary_col1:
+            st.write(
+                f"**Booking ID:** "
+                f"{st.session_state.appointment_id}"
+            )
+            st.write(
+                f"**Name:** {appointment['full_name']}"
+            )
+            st.write(
+                f"**Phone:** {appointment['phone_number']}"
+            )
+            st.write(
+                f"**Email:** {appointment['email_address']}"
+            )
+
+        with summary_col2:
+            st.write(
+                f"**Date:** {appointment['appointment_date']}"
+            )
+            st.write(
+                f"**Time:** {appointment['appointment_time']}"
+            )
+            st.write(
+                f"**Appointment Type:** "
+                f"{appointment['appointment_type']}"
+            )
+            st.write(
+                f"**Reason:** {appointment['reason']}"
+            )
+
+    if st.button(
+        "Book Another Appointment",
+        use_container_width=True
+    ):
         reset_booking()
         st.rerun()
-
 
 # ---------------------------------------------------
 # Reset button
