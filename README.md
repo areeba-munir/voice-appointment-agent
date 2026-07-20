@@ -7,7 +7,7 @@ The application also includes a customer self-service page, a staff dashboard, S
 ---
 ## Live Demo
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://voice-appointment-agent-pubig5w2qt7lvobzcjnut.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://voice-appointment-agent-ppubiq5w2qt7lvobzcjnut.streamlit.app/)
 
 
 ## Features
